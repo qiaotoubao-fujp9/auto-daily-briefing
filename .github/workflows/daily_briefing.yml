@@ -1,0 +1,49 @@
+name: 每日科技头条精选自动生成
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 配置 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: "pip"
+
+      - name: 安装依赖
+        run: pip install -r requirements.txt
+
+      - name: 生成日报
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+        run: python main.py
+
+      - name: 提交生成产物
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+
+          git add -- "每日简报" "utils/history.txt"
+
+          if git diff --cached --quiet; then
+            echo "没有新的日报产物需要提交。"
+            exit 0
+          fi
+
+          git commit -m "chore: archive daily briefing"
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          git push origin HEAD:${GITHUB_REF_NAME}
